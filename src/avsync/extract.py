@@ -1,6 +1,9 @@
 import subprocess
 from pathlib import Path
 
+import mediapipe as mp
+from mediapipe.tasks.python import BaseOptions, vision
+
 import cv2
 
 def extract_audio(video_path, out_path=None, sample_rate=16000):
@@ -30,17 +33,16 @@ def extract_frames(video_path):
     frames = []
 
     while True:
-        ok, frame = cap.read()          # read the next frame
-        if not ok:                  # video finished?
+        ok, frame = cap.read()        
+        if not ok:               
             break
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)              # convert BGR → RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)              
         frames.append(frame)
 
-    cap.release()                   # close the video file
+    cap.release()   
     return frames, fps
 
-import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions, vision
+
 
 DEFAULT_FACE_MODEL = "models/blaze_face_short_range.tflite"
 
@@ -85,7 +87,6 @@ def crop_faces(frames, fps, model_path=DEFAULT_FACE_MODEL, size=224, margin=0.25
             x2 = min(img_w, x2)                         # right edge can't go past the image width
             y2 = min(img_h, y2)                         # bottom edge can't go past the image height
             
-            # Slice the face out: frame[y1:y2, x1:x2]
             face = frame[y1:y2, x1:x2]                  # slice: rows (y) first, then columns (x)
 
             # Resize to (size, size) with cv2.resize and append to crops
