@@ -1,6 +1,11 @@
-import torch
-from avsync.sync import load_syncnet
+from pathlib import Path
 
+import torch
+
+from avsync.extract import extract_audio, extract_frames, crop_faces
+from avsync.sync import load_syncnet, crops_to_tensor, wav_to_mfcc
+
+SAMPLE_VIDEO = Path("samples/grid/s1/bbaf2n.mpg")
 
 def test_syncnet_loads_and_runs():
     model = load_syncnet()
@@ -16,3 +21,18 @@ def test_syncnet_loads_and_runs():
     # assert both outputs have shape (1, 1024)
     assert lip_emb.shape == (1, 1024)
     assert aud_emb.shape == (1, 1024)
+    
+    
+def test_prepare_inputs(tmp_path):  
+    # video side
+    frames, fps = extract_frames(SAMPLE_VIDEO)
+    crops = crop_faces(frames, fps)
+    video = crops_to_tensor(crops)
+
+    # audio side
+    wav = extract_audio(SAMPLE_VIDEO, out_path=tmp_path / "a.wav")
+    mfcc = wav_to_mfcc(wav)
+    
+    assert video.shape == (1, 3, len(crops), 224, 224)
+    assert mfcc.shape[2] == 13
+    assert abs(mfcc.shape[3] - len(crops) * 4) <= 4
