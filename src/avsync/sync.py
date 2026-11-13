@@ -53,3 +53,30 @@ def embed_windows(model, video, mfcc, batch_size=64):
             aud_embs.append(model.forward_aud(aud_batch.to(device)).cpu())
 
     return torch.cat(lip_embs), torch.cat(aud_embs)
+
+def find_offset(lip_embs, aud_embs, max_shift=15, fps=25):
+    """Try audio shifts of -max_shift..+max_shift frames; return the best one.
+    Positive offset = audio lags the video."""
+    n = lip_embs.shape[0]
+    shifts = list(range(-max_shift, max_shift + 1))
+    mean_dists = []
+
+    for s in shifts:
+        if s >= 0:
+            lip, aud = lip_embs[:n - s], aud_embs[s:]      # lip[i] vs aud[i+s]
+        else:
+            lip, aud = lip_embs[-s:], aud_embs[:n + s]     # lip[i] vs aud[i-|s|]
+        d = torch.nn.functional.pairwise_distance(lip, aud)   # one distance per window
+        mean_dists.append(d.mean())
+
+    mean_dists = torch.stack(mean_dists)        # one average distance per shift
+    best = torch.argmin(mean_dists).item()                            # INDEX of the smallest distance
+    offset = shifts[best]
+    confidence = (mean_dists.median() - mean_dists[best]).item()
+
+    return {
+        "offset_frames": offset,
+        "offset_ms": 1000/fps * offset,                    # frames → milliseconds
+        "confidence": confidence,
+        "mean_dists": mean_dists,
+    }
