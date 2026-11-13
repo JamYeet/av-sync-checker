@@ -24,7 +24,7 @@ def load_syncnet(weights_path=DEFAULT_SYNCNET_WEIGHTS, device=None):
 
 def crops_to_tensor(crops):
     """List of RGB face crops -> float tensor (1, 3, T, H, W) in BGR, as SyncNet expects."""
-    bgr = [cv2.cvtColor(c, cv2.COLOR_RGB2BGR) for c in crops]   # RGB -> BGR (the heads-up from earlier)
+    bgr = [cv2.cvtColor(c, cv2.COLOR_RGB2BGR) for c in crops]   # RGB -> BGR
     video = np.stack(bgr, axis=0)                     # shape (T, H, W, 3)
     video = video.transpose(3, 0, 1, 2)                   # want (3, T, H, W)
     return torch.from_numpy(video).float().unsqueeze(0)   # add the batch dim -> (1, 3, T, H, W)
@@ -35,3 +35,21 @@ def wav_to_mfcc(wav_path):
     mfcc = python_speech_features.mfcc(audio, sample_rate)   # shape (n_steps, 13)
     mfcc = mfcc.T                                            # -> (13, n_steps)
     return torch.from_numpy(mfcc).float().unsqueeze(0).unsqueeze(0)
+
+def embed_windows(model, video, mfcc, batch_size=64):
+    """Slide a 5-frame / 20-step window along the clip.
+    Returns (lip_embs, aud_embs), each of shape (N, 1024)."""
+    device = next(model.parameters()).device
+    min_length = min(video.shape[2], mfcc.shape[3] // 4)   # frames we have both video AND audio for
+    n_windows = min_length - 4                               # last window must still fit 5 frames
+
+    lip_embs, aud_embs = [], []
+    with torch.no_grad():
+        for start in range(0, n_windows, batch_size):
+            idx = range(start, min(start + batch_size, n_windows))
+            lip_batch = torch.cat([video[:, :, i:i+5] for i in idx])     # 5 frames from i
+            aud_batch = torch.cat([mfcc[:, :, :, 4*i:4*i+20] for i in idx])   # 20 audio steps from 4*i
+            lip_embs.append(model.forward_lip(lip_batch.to(device)).cpu())
+            aud_embs.append(model.forward_aud(aud_batch.to(device)).cpu())
+
+    return torch.cat(lip_embs), torch.cat(aud_embs)
