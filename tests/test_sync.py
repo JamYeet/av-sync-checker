@@ -2,8 +2,10 @@ from pathlib import Path
 
 import torch
 
+from scipy.io import wavfile
+
 from avsync.extract import extract_audio, extract_frames, crop_faces
-from avsync.sync import load_syncnet, crops_to_tensor, wav_to_mfcc, embed_windows, find_offset
+from avsync.sync import load_syncnet, crops_to_tensor, wav_to_mfcc, embed_windows, find_offset, shift_audio, audio_to_mfcc
 
 SAMPLE_VIDEO = Path("samples/grid/s1/bbaf2n.mpg")
 
@@ -73,3 +75,22 @@ def test_find_offset_in_sync_clip(tmp_path):
 
     assert abs(result["offset_frames"]) <= 1            # offset within 1 frame of 0
     assert result["confidence"] > 0                     # confidence is positive
+
+def test_detects_known_audio_shift(tmp_path):
+    frames, fps = extract_frames(SAMPLE_VIDEO)
+    video = crops_to_tensor(crop_faces(frames, fps))
+
+    wav = extract_audio(SAMPLE_VIDEO, out_path=tmp_path / "a.wav")
+    sample_rate, audio = wavfile.read(wav)
+
+    model = load_syncnet()
+
+    for offset_ms in [80, -120]:
+        shifted = shift_audio(audio, sample_rate, offset_ms)
+        mfcc = audio_to_mfcc(shifted, sample_rate)
+        lip_embs, aud_embs = embed_windows(model, video, mfcc)
+        result = find_offset(lip_embs, aud_embs)
+
+        print(offset_ms, "ms shifted →", result["offset_ms"], "ms detected | confidence", result["confidence"])
+
+        assert abs(result["offset_ms"] - offset_ms) <= 40
