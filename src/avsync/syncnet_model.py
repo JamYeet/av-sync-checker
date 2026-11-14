@@ -2,9 +2,6 @@
 # Copyright (c) 2016-present Joon Son Chung. MIT License.
 # Chung & Zisserman, "Out of time: automated lip sync in the wild", ACCV Workshops 2016.
 
-#!/usr/bin/env python3
-#-*- coding: utf-8 -*-
-
 import torch
 import torch.nn as nn
 

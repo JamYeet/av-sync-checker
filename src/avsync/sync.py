@@ -29,12 +29,16 @@ def crops_to_tensor(crops):
     video = video.transpose(3, 0, 1, 2)                   # want (3, T, H, W)
     return torch.from_numpy(video).float().unsqueeze(0)   # add the batch dim -> (1, 3, T, H, W)
 
-def wav_to_mfcc(wav_path):
-    """16 kHz mono WAV -> MFCC tensor (1, 1, 13, n_steps), 100 steps per second."""
-    sample_rate, audio = wavfile.read(wav_path)
-    mfcc = python_speech_features.mfcc(audio, sample_rate)   # shape (n_steps, 13)
-    mfcc = mfcc.T                                            # -> (13, n_steps)
+def audio_to_mfcc(audio, sample_rate):
+    """Audio samples (numpy array) -> MFCC tensor (1, 1, 13, n_steps)."""
+    mfcc = python_speech_features.mfcc(audio, sample_rate).T
     return torch.from_numpy(mfcc).float().unsqueeze(0).unsqueeze(0)
+
+
+def wav_to_mfcc(wav_path):
+    """16 kHz mono WAV file -> MFCC tensor."""
+    sample_rate, audio = wavfile.read(wav_path)
+    return audio_to_mfcc(audio, sample_rate)
 
 def embed_windows(model, video, mfcc, batch_size=64):
     """Slide a 5-frame / 20-step window along the clip.
@@ -80,3 +84,15 @@ def find_offset(lip_embs, aud_embs, max_shift=15, fps=25):
         "confidence": confidence,
         "mean_dists": mean_dists,
     }
+    
+def shift_audio(audio, sample_rate, offset_ms):
+    """Shift audio in time, keeping the same length.
+    Positive offset_ms = audio plays later (lags the video); negative = earlier."""
+    n = int(round(abs(offset_ms) / 1000 * sample_rate))    # how many samples to shift
+    if n == 0:
+        return audio.copy()
+    silence = np.zeros(n, dtype=audio.dtype)
+    if offset_ms > 0:
+        return np.concatenate([silence, audio[:-n]])   # audio WITHOUT its last n samples
+    else:
+        return np.concatenate([audio[n:], silence])   # audio WITHOUT its first n samples
