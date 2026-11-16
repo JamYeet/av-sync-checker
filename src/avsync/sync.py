@@ -2,9 +2,12 @@ import torch
 import cv2
 import numpy as np
 import python_speech_features
+import tempfile
+
 from scipy.io import wavfile
 from avsync.syncnet_model import S
-
+from pathlib import Path
+from avsync.extract import extract_audio, extract_frames, crop_faces
 
 
 DEFAULT_SYNCNET_WEIGHTS = "models/syncnet_v2.model"
@@ -80,7 +83,7 @@ def find_offset(lip_embs, aud_embs, max_shift=15, fps=25):
 
     return {
         "offset_frames": offset,
-        "offset_ms": 1000/fps * offset,                    # frames → milliseconds
+        "offset_ms": 1000/fps * offset,                    # frames to milliseconds
         "confidence": confidence,
         "mean_dists": mean_dists,
     }
@@ -96,3 +99,30 @@ def shift_audio(audio, sample_rate, offset_ms):
         return np.concatenate([silence, audio[:-n]])   # audio WITHOUT its last n samples
     else:
         return np.concatenate([audio[n:], silence])   # audio WITHOUT its first n samples
+    
+
+FRAME_MS = 40
+MIN_CONFIDENCE = 3.0  
+def analyse_video(video_path, model=None):
+    """Run the full pipeline on a video file and return the result dict, plus a verdict."""
+    if model is None:
+        model = load_syncnet()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        frames, fps = extract_frames(video_path)
+        crops = crop_faces(frames, fps)
+        video = crops_to_tensor(crops)
+
+        wav = extract_audio(video_path, Path(tmp) / "a.wav")
+        mfcc = wav_to_mfcc(wav)
+
+        lip_embs, aud_embs = embed_windows(model, video, mfcc)
+        result = find_offset(lip_embs, aud_embs)
+
+    if result["confidence"] < MIN_CONFIDENCE:
+        result["verdict"] = "uncertain"
+    elif abs(result["offset_ms"]) <= FRAME_MS:
+        result["verdict"] = "in sync"
+    else:
+        result["verdict"] = "out of sync"
+    return result
