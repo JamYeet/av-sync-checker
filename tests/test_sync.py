@@ -1,11 +1,12 @@
 from pathlib import Path
+import subprocess
 
 import torch
 
 from scipy.io import wavfile
 
-from avsync.extract import extract_audio, extract_frames, crop_faces
-from avsync.sync import load_syncnet, crops_to_tensor, wav_to_mfcc, embed_windows, find_offset, shift_audio, audio_to_mfcc
+from avsync.extract import extract_audio, extract_frames, crop_faces, normalise_video
+from avsync.sync import (load_syncnet, crops_to_tensor, wav_to_mfcc, embed_windows, find_offset, shift_audio, audio_to_mfcc, analyse_video)
 
 SAMPLE_VIDEO = Path("samples/grid/s1/bbaf2n.mpg")
 
@@ -94,3 +95,25 @@ def test_detects_known_audio_shift(tmp_path):
         print(offset_ms, "ms shifted →", result["offset_ms"], "ms detected | confidence", result["confidence"])
 
         assert abs(result["offset_ms"] - offset_ms) <= 40
+    
+    
+def test_handles_non_25fps_video(tmp_path):
+    video_30 = normalise_video(SAMPLE_VIDEO, tmp_path / "v30.mp4", fps=30)   # simulate a phone video
+    result = analyse_video(video_30)
+
+    print("30 fps:", result["offset_ms"], "ms | confidence", result["confidence"], "|", result["verdict"])
+
+    assert abs(result["offset_ms"]) <= 40
+    assert result["verdict"] == "in sync"
+    
+def test_detects_timestamp_offset(tmp_path):
+    late = tmp_path / "late.mp4"
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(SAMPLE_VIDEO), "-itsoffset", "0.2", "-i", str(SAMPLE_VIDEO),
+        "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+        "-shortest", str(late),
+    ], check=True, capture_output=True)
+
+    result = analyse_video(late)
+    print("200 ms timestamp offset →", result["offset_ms"], "ms | confidence", result["confidence"])
+    assert abs(result["offset_ms"] - 200) <= 40

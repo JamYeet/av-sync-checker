@@ -7,8 +7,7 @@ import tempfile
 from scipy.io import wavfile
 from avsync.syncnet_model import S
 from pathlib import Path
-from avsync.extract import extract_audio, extract_frames, crop_faces
-
+from avsync.extract import extract_audio, extract_frames, crop_faces, normalise_video
 
 DEFAULT_SYNCNET_WEIGHTS = "models/syncnet_v2.model"
 
@@ -67,6 +66,7 @@ def find_offset(lip_embs, aud_embs, max_shift=15, fps=25):
     n = lip_embs.shape[0]
     shifts = list(range(-max_shift, max_shift + 1))
     mean_dists = []
+    per_shift_dists = []
 
     for s in shifts:
         if s >= 0:
@@ -74,18 +74,21 @@ def find_offset(lip_embs, aud_embs, max_shift=15, fps=25):
         else:
             lip, aud = lip_embs[-s:], aud_embs[:n + s]     # lip[i] vs aud[i-|s|]
         d = torch.nn.functional.pairwise_distance(lip, aud)   # one distance per window
+        per_shift_dists.append(d)
         mean_dists.append(d.mean())
 
     mean_dists = torch.stack(mean_dists)        # one average distance per shift
     best = torch.argmin(mean_dists).item()                            # INDEX of the smallest distance
     offset = shifts[best]
     confidence = (mean_dists.median() - mean_dists[best]).item()
+    window_confidence = (mean_dists.median() - per_shift_dists[best]).tolist()
 
     return {
         "offset_frames": offset,
         "offset_ms": 1000/fps * offset,                    # frames to milliseconds
         "confidence": confidence,
         "mean_dists": mean_dists,
+        "window_confidence": window_confidence,
     }
     
 def shift_audio(audio, sample_rate, offset_ms):
@@ -109,14 +112,18 @@ def analyse_video(video_path, model=None):
         model = load_syncnet()
 
     with tempfile.TemporaryDirectory() as tmp:
-        frames, fps = extract_frames(video_path)
+        video_25 = normalise_video(video_path, Path(tmp) / "video_25fps.mp4")
+
+        frames, fps = extract_frames(video_25)
         crops = crop_faces(frames, fps)
         video = crops_to_tensor(crops)
 
-        wav = extract_audio(video_path, Path(tmp) / "a.wav")
+        wav = extract_audio(video_25, Path(tmp) / "a.wav")
         mfcc = wav_to_mfcc(wav)
 
         lip_embs, aud_embs = embed_windows(model, video, mfcc)
+        if lip_embs.shape[0] <= 15:   # need more windows than the max shift (15)
+            raise ValueError("Video is too short. Please upload at least 2 seconds of someone talking.")
         result = find_offset(lip_embs, aud_embs)
 
     if result["confidence"] < MIN_CONFIDENCE:
