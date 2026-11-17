@@ -17,6 +17,7 @@ def extract_audio(video_path, out_path=None, sample_rate=16000):
         "-i", str(video_path),
         "-ac", "1",
         "-ar", str(sample_rate),
+        "-af", "aresample=async=1:first_pts=0",
         "-vn",
         str(out_path),
     ]
@@ -93,3 +94,16 @@ def crop_faces(frames, fps, model_path=DEFAULT_FACE_MODEL, size=224, margin=0.25
             crops.append(cv2.resize(face, (size, size)))
             
     return crops
+
+def normalise_video(video_path, out_path, fps=25):
+    """Re-encode a video to a constant frame rate (default 25 fps), keeping its audio."""
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(video_path),
+        "-vf", f"fps={fps}",               # resample video to the target frame rate
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",                     # keep the audio
+        str(out_path),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    return Path(out_path)
