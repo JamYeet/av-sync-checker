@@ -7,6 +7,19 @@ name = "avsync"
 version = "0.1.0"
 description = "Detect audio-visual offset in talking-head videos using SyncNet"
 requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "numpy",
+    "scipy",
+    "mediapipe>=1.2",
+    "opencv-contrib-python",
+    "python_speech_features",
+    "gradio",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [project.scripts]
 avsync = "avsync.cli:main"
