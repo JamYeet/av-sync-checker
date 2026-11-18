@@ -1,0 +1,35 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system packages (ffmpeg, OpenGL for OpenCV)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libgl1
+
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install the project
+        run: pip install -e ".[dev]"
+
+      - name: Cache model files
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-v1
+
+      - name: Run tests
+        run: pytest -v

@@ -8,7 +8,7 @@ from scipy.io import wavfile
 from avsync.extract import extract_audio, extract_frames, crop_faces, normalise_video
 from avsync.sync import (load_syncnet, crops_to_tensor, wav_to_mfcc, embed_windows, find_offset, shift_audio, audio_to_mfcc, analyse_video)
 
-SAMPLE_VIDEO = Path("samples/grid/s1/bbaf2n.mpg")
+SAMPLE_VIDEO = Path("examples/in_sync.mp4")
 
 def test_syncnet_loads_and_runs():
     model = load_syncnet()

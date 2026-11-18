@@ -4,7 +4,7 @@ from scipy.io import wavfile
 
 from avsync.extract import extract_audio, extract_frames, crop_faces
 
-SAMPLE_VIDEO = Path("samples/grid/s1/bbaf2n.mpg")
+SAMPLE_VIDEO = Path("examples/in_sync.mp4")
 
 
 def test_extract_audio_creates_16k_mono_wav(tmp_path):
@@ -34,3 +34,4 @@ def test_crop_faces():
     # every crop is 224 x 224 with 3 colour channels
     for crop in crops:
         assert crop.shape == (224, 224, 3)
+        
