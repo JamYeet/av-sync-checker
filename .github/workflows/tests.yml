@@ -16,9 +16,6 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install system packages (ffmpeg, OpenGL for OpenCV)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg libgl1
-
       - name: Install CPU-only PyTorch
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 

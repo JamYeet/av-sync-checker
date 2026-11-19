@@ -5,9 +5,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import subprocess
 
+from avsync.models import ensure_models
 from avsync.sync import analyse_video, load_syncnet
 
-MODEL = load_syncnet()  
+ensure_models()
+MODEL = load_syncnet()
 
 
 def plot_confidence(window_confidence, fps=25):

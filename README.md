@@ -1,3 +1,13 @@
+---
+title: AV Sync Checker
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # AV Sync Checker
 
 Detects audio–visual offset in talking-head videos using a pretrained SyncNet model.
